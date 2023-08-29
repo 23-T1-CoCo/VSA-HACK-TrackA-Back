@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebSocket Client</title>
+</head>
+<body>
+  <script>
+    const socket = new WebSocket('ws://localhost:3000'); // WebSocket 서버 주소로 변경
+
+    socket.onopen = () => {
+      console.log('Connected to WebSocket server');
+
+      // 클라이언트에서 join 메시지 보내기
+      const joinMessage = {
+        userId: 'coco',
+        message: 'join',
+      };
+      socket.send(JSON.stringify(joinMessage));
+    };
+
+    socket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      console.log('Received data from server:', data);
+    };
+  </script>
+</body>
+</html>

@@ -30,7 +30,7 @@ server.on('upgrade', (request, socket, head) => {
 
 // HTTP 서버가 5000번 포트에서 대기
 server.listen(3000, () => {
-  console.log('Listening to port 5000');
+  console.log('Listening to port 3000');
 });
 
 // 대기열을 생성하는 함수
@@ -64,9 +64,22 @@ wss.on('connection', (socket) => {
 
   // 새로운 클라이언트가 연결되었을 때
   socket.on('message', (message) => {
-    if (message === 'join') {
-      socket.join(queue1Name); // 대기열에 클라이언트 추가
-      console.log('Client joined the queue');
+    const data = JSON.parse(message);
+    const userId = data.userId;
+    const join = data.message;
+    if (join === 'join') {
+      redisClient.lpush(queue1Name, userId, (error, queueLength) => {
+        if (error) {
+          console.error('Error adding user to queue:', error);
+        } else {
+          console.log(`User ${userId} joined the queue. Queue length: ${queueLength}`);
+          const result = {
+            userId: userId,
+            queueLength: queueLength
+          };
+          socket.send(JSON.stringify(result)); // 클라이언트에게 응답을 전송
+        }
+      });
       updateQueueStatus(); // 대기열 상태 업데이트
     }
   });

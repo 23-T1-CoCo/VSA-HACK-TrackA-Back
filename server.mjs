@@ -1,10 +1,10 @@
 import express from 'express';
 import { addWaitingData, getWaitingData } from './DB/db.mjs'
+import { createQueues } from './socket/queueServer.mjs';
 import bodyParser from 'body-parser';
 
 const app = express();
 app.use(bodyParser.json());
-
 
 
 
