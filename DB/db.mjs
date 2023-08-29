@@ -24,11 +24,11 @@ export const connectToRedis = () => {
 };
 
 // 데이터 저장 함수
-export const setData = (key, value) => {
+export const addWaitingData = (score, userId, productId) => {
   const redis = connectToRedis();
 
   return new Promise((resolve, reject) => {
-    redis.set(key, value, (err, result) => {
+    redis.zadd('Wating', score, `${userId}:${productId}`, (err, result) => {
       if (err) {
         reject(err);
         return;
@@ -39,17 +39,25 @@ export const setData = (key, value) => {
   });
 };
 
-// 데이터 가져오기 함수
-export const getData = (key) => {
+// 데이터 조회 함수
+export const getWaitingData = () => {
   const redis = connectToRedis();
 
   return new Promise((resolve, reject) => {
-    redis.get(key, (err, result) => {
+    redis.zrange('Wating', 0, -1, 'WITHSCORES', (err, result) => {
       if (err) {
         reject(err);
         return;
       }
-      resolve(result);
+      
+      const waitingData = [];
+      for (let i = 0; i < result.length; i += 2) {
+        const [userId, productId] = result[i].split(':');
+        const score = result[i + 1];
+        waitingData.push({ userId, productId, score });
+      }
+      
+      resolve(waitingData);
       redis.quit();
     });
   });
