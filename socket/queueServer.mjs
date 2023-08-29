@@ -33,13 +33,6 @@ server.listen(3000, () => {
   console.log('Listening to port 3000');
 });
 
-// 대기열을 생성하는 함수
-export async function createQueues() {
-  await redisClient.del(queue1Name, queue2Name, queue3Name); // 기존 대기열 삭제
-  await redisClient.rpush(queue1Name, 'a', 'b', 'c', 'd', 'e'); // 대기열에 데이터 추가
-  const queueContents = await redisClient.lrange(queue1Name, 0, -1);
-  console.log(queueContents);
-}
 
 // 대기열을 처리하는 함수
 export async function processQueue() {
@@ -56,7 +49,6 @@ export async function processQueuePeriodically() {
   setTimeout(processQueuePeriodically, 1000); // 1초마다 실행
 }
 
-processQueuePeriodically(); // 대기열 처리 함수 실행
 
 // WebSocket 서버에 연결된 클라이언트가 있을 때
 wss.on('connection', (socket) => {

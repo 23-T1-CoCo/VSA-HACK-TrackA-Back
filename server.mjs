@@ -1,42 +1,33 @@
 import express from 'express';
-import { addWaitingData, getWaitingData } from './DB/db.mjs'
-import { createQueues } from './socket/queueServer.mjs';
+import WebSocket, { WebSocketServer } from "ws";
 import bodyParser from 'body-parser';
 
 const app = express();
 app.use(bodyParser.json());
 
 
+app.get('/', (req, res) => {
+  const socket = new WebSocket('ws://localhost:3000'); // WebSocket 서버 주소로 변경
 
-app.get('/setData', async (req, res) => {
-  const min = 1;
-  const max = 100;
-  const randomInRange = Math.floor(Math.random() * (max - min + 1)) + min;
+    socket.onopen = () => {
+      console.log('Connected to WebSocket server');
 
-  // 현재시간
-  const currentTime = Date.now();
-  console.log(currentTime);
+      // 클라이언트에서 join 메시지 보내기
+      const joinMessage = {
+        userId: 'coco',
+        message: 'join',
+      };
+      socket.send(JSON.stringify(joinMessage));
+    };
 
-  try{
-    await addWaitingData(currentTime, randomInRange, 'product456')
-    res.send(randomInRange);
-  } catch(err) {
-    console.error('Error setting data:', error);
-    res.status(500).send('Error setting data');
-  }
-});
+    socket.onmessage = (event) => {
+      console.log(event.data)
+      const data = event.data;
+      console.log('Received data from server:', data);
+    };
+    res.send('Hello World!');
+  });
 
-app.get('/getData', async (req, res) => {
-
-  try{
-    const waitingData = await getWaitingData();
-    res.json(waitingData);
-  } catch(err) {
-    console.error('Error getting waiting data:', error);
-    res.status(500).send('Error getting waiting data');
-  }
-
-});
 
 app.listen(5000, () => {
   console.log('Example app listening on port 5000!');
