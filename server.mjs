@@ -6,15 +6,15 @@ const app = express();
 app.use(bodyParser.json());
 
 
-app.get('/', (req, res) => {
+app.get('/:id', (req, res) => {
   const socket = new WebSocket('ws://localhost:3001'); // WebSocket 서버 주소로 변경
-
+  const id = req.params.id;
     socket.onopen = () => {
       console.log('Connected to WebSocket server');
 
       // 클라이언트에서 join 메시지 보내기
       const joinMessage = {
-        userId: 'coco',
+        userId: id,
         message: 'join',
       };
       socket.send(JSON.stringify(joinMessage));

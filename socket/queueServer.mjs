@@ -34,16 +34,17 @@ server.on('upgrade', (request, socket, head) => {
 });
 
 // HTTP 서버가 5000번 포트에서 대기
-server.listen(3000, () => {
+server.listen(3001, () => {
   console.log('Listening to port 3000');
 });
 
 // 대기열을 처리하는 함수
 export async function processQueue() {
-  const data = await redisClient.lpop(queue1Name); // 대기열에서 데이터를 가져옴
+  const data = await redisClient.rpop(queue1Name); // 대기열에서 데이터를 가져옴
+  console.log(data);
   if (data) {
-    await redisClient.rpush(queue2Name, data); // 처리 대기열에 데이터 추가
-    await redisClient.rpush(queue3Name, data); // 완료 대기열에 데이터 추가
+    await redisClient.lpush(queue2Name, data); // 처리 대기열에 데이터 추가
+    await redisClient.lpush(queue3Name, data); // 완료 대기열에 데이터 추가
   }
 }
 
@@ -56,7 +57,6 @@ wss.on('connection', async (socket) => {
 
   socket.on('message', async (message) => {
     const data = JSON.parse(message);
-    console.log(message)
     const userId = data.userId;
     const join = data.message;
 
@@ -73,42 +73,47 @@ wss.on('connection', async (socket) => {
           };
 
           // 사용자의 인덱스 값을 해시 맵에 저장
-          await redisClient.hset(userIdIndexMapKey, userId, queueLength - 1);
+          await redisClient.hset("userIdIndexMapKey", userId, queueLength - 1);
 
           socket.send(JSON.stringify(result)); // 클라이언트에게 응답을 전송
-          updateQueueStatus(userId); // 대기열 상태 업데이트
+          await updateQueueStatus(userId); // 대기열 상태 업데이트
+
+
         }
       });
     }
   });
 
   // 대기열 처리 및 대기열 상태 업데이트 주기적으로 실행하는 함수
-async function processQueuePeriodically() {
-  if (wss.clients.size === 0) { // 연결된 클라이언트가 없으면
-    return;
-  }
+    async function processQueuePeriodically() {
+      if (wss.clients.size === 0) { // 연결된 클라이언트가 없으면
+        return;
+      }
 
-  await processQueue();
-  updateQueueStatus(); // 대기열 상태 업데이트
+      const userId = "coco"
+      await processQueue();
+      await updateQueueStatus(userId); // 대기열 상태 업데이트
 
-  // 맨 앞 사용자 제거 및 인덱스 감소 로직 추가
-  const userIdToBeRemoved = await redisClient.lindex(queue1Name, 0);
-  if (userIdToBeRemoved) {
-    await redisClient.lpop(queue1Name);
-    const userIds = await redisClient.lrange(queue1Name, 0, -1);
-    userIds.forEach(async (id) => {
-      await redisClient.hincrby(userIdIndexMapKey, id, -1);
-    });
-  }
+      // 맨 앞 사용자 제거 및 인덱스 감소 로직 추가
+      const userIdToBeRemoved = await redisClient.lindex(queue1Name, 0);
+      if (userIdToBeRemoved) {
+    
+        // 인덱스 감소 로직 추가
+        const userIds = await redisClient.lrange(queue1Name, 0, -1);
+        console.log(userIds);
+        userIds.forEach(async (id) => {
+          await redisClient.hincrby("userIdIndexMapKey", id, -1);
+        });
+      }
+    
 
-  setTimeout(processQueuePeriodically, 3000); // 3초마다 실행
-}
+      setTimeout(processQueuePeriodically, 5000); // 3초마다 실행
+    }
 
   await processQueuePeriodically(); // 대기열 처리 및 대기열 상태 업데이트 주기적으로 실행
 
   socket.on('close', async () => {
-    const userData = JSON.parse(socket.userData);
-    const userId = userData.userId;
+    const userId = "coco";
 
     if (userId) {
       const index = await redisClient.hget(userIdIndexMapKey, userId);
@@ -118,7 +123,7 @@ async function processQueuePeriodically() {
           console.error('Error removing user from queue:', error);
         } else {
           console.log(`User ${userId} left the queue. Queue length: ${queueLength}`);
-          updateQueueStatus(userId); // 대기열 상태 업데이트
+          await updateQueueStatus(userId); // 대기열 상태 업데이트
 
           if (index !== null) {
             const indexInt = parseInt(index, 10);
@@ -138,7 +143,7 @@ async function processQueuePeriodically() {
   async function updateQueueStatus(userId) {
     wss.clients.forEach(async (client) => {
       if (client.readyState === WebSocket.OPEN) {
-        const newIndex = await redisClient.hget(userIdIndexMapKey, userId);
+        const newIndex = await redisClient.hget("userIdIndexMapKey", userId);
             const result = {
               "userId": userId,
               "queueIndex": newIndex
