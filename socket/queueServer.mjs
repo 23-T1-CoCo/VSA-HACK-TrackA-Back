@@ -4,7 +4,7 @@ import { Redis } from 'ioredis';
 
 const server = http.createServer(); // HTTP 서버 생성
 const wss = new WebSocketServer({ noServer: true }); // WebSocket 서버 포트
-
+const userIdIndexMapKey = "userIndexMap";
 
 // Redis 클라이언트 생성
 const redisClient = new Redis({
@@ -33,7 +33,6 @@ server.listen(3000, () => {
   console.log('Listening to port 3000');
 });
 
-
 // 대기열을 처리하는 함수
 export async function processQueue() {
   const data = await redisClient.lpop(queue1Name); // 대기열에서 데이터를 가져옴
@@ -43,54 +42,105 @@ export async function processQueue() {
   }
 }
 
-// 대기열 처리를 주기적으로 실행하는 함수
-export async function processQueuePeriodically() {
-  await processQueue();
-  setTimeout(processQueuePeriodically, 1000); // 1초마다 실행
-}
+
 
 
 // WebSocket 서버에 연결된 클라이언트가 있을 때
-wss.on('connection', (socket) => {
+wss.on('connection', async (socket) => {
   console.log('Client connected to queue server');
 
-  // 새로운 클라이언트가 연결되었을 때
-  socket.on('message', (message) => {
+  socket.on('message', async (message) => {
     const data = JSON.parse(message);
+    console.log(message)
     const userId = data.userId;
     const join = data.message;
+
     if (join === 'join') {
-      redisClient.lpush(queue1Name, userId, (error, queueLength) => {
+      // 사용자를 큐에 추가하고, 인덱스 맵에도 추가
+      redisClient.lpush(queue1Name, userId, async (error, queueLength) => {
         if (error) {
           console.error('Error adding user to queue:', error);
         } else {
           console.log(`User ${userId} joined the queue. Queue length: ${queueLength}`);
           const result = {
-            userId: userId,
-            queueLength: queueLength
+            "userId": userId,
+            "queueLength": queueLength
           };
+
+          // 사용자의 인덱스 값을 해시 맵에 저장
+          await redisClient.hset(userIdIndexMapKey, userId, queueLength - 1);
+
           socket.send(JSON.stringify(result)); // 클라이언트에게 응답을 전송
+          updateQueueStatus(userId); // 대기열 상태 업데이트
         }
       });
-      updateQueueStatus(); // 대기열 상태 업데이트
     }
   });
 
-  socket.on('close', () => {
-    console.log('Client left the queue');
-    updateQueueStatus(); // 대기열 상태 업데이트
+  // 대기열 처리 및 대기열 상태 업데이트 주기적으로 실행하는 함수
+async function processQueuePeriodically() {
+  if (wss.clients.size === 0) { // 연결된 클라이언트가 없으면
+    return;
+  }
+
+  await processQueue();
+  updateQueueStatus(); // 대기열 상태 업데이트
+
+  // 맨 앞 사용자 제거 및 인덱스 감소 로직 추가
+  const userIdToBeRemoved = await redisClient.lindex(queue1Name, 0);
+  if (userIdToBeRemoved) {
+    await redisClient.lpop(queue1Name);
+    const userIds = await redisClient.lrange(queue1Name, 0, -1);
+    userIds.forEach(async (id) => {
+      await redisClient.hincrby(userIdIndexMapKey, id, -1);
+    });
+  }
+
+  setTimeout(processQueuePeriodically, 3000); // 3초마다 실행
+}
+
+  await processQueuePeriodically(); // 대기열 처리 및 대기열 상태 업데이트 주기적으로 실행
+
+  socket.on('close', async () => {
+    const userData = JSON.parse(socket.userData);
+    const userId = userData.userId;
+
+    if (userId) {
+      const index = await redisClient.hget(userIdIndexMapKey, userId);
+
+      redisClient.lrem(queue1Name, 1, userId, async (error, queueLength) => {
+        if (error) {
+          console.error('Error removing user from queue:', error);
+        } else {
+          console.log(`User ${userId} left the queue. Queue length: ${queueLength}`);
+          updateQueueStatus(userId); // 대기열 상태 업데이트
+
+          if (index !== null) {
+            const indexInt = parseInt(index, 10);
+            const userIds = await redisClient.lrange(queue1Name, indexInt, -1);
+            userIds.forEach(async (id) => {
+              await redisClient.hincrby(userIdIndexMapKey, id, -1);
+            });
+          }
+        }
+      });
+    } else {
+      console.log('Client disconnected');
+    }
   });
 
   // 대기열 상태 업데이트를 전송하는 함수
-  async function updateQueueStatus() {
-    const queueSize = await redisClient.llen(queue1Name); // 대기열의 길이를 가져옴
-    wss.clients.forEach((client) => {
+  async function updateQueueStatus(userId) {
+    wss.clients.forEach(async (client) => {
       if (client.readyState === WebSocket.OPEN) {
-        client.send(`Queue size: ${queueSize}`);
+        const newIndex = await redisClient.hget(userIdIndexMapKey, userId);
+            const result = {
+              "userId": userId,
+              "queueIndex": newIndex
+            };
+            client.send(JSON.stringify(result));
+            console.log(result)
+          }
+        });
       }
     });
-  }
-});
-
-
-

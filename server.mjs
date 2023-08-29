@@ -7,7 +7,7 @@ app.use(bodyParser.json());
 
 
 app.get('/', (req, res) => {
-  const socket = new WebSocket('ws://localhost:3000'); // WebSocket 서버 주소로 변경
+  const socket = new WebSocket('ws://localhost:3001'); // WebSocket 서버 주소로 변경
 
     socket.onopen = () => {
       console.log('Connected to WebSocket server');
@@ -21,7 +21,6 @@ app.get('/', (req, res) => {
     };
 
     socket.onmessage = (event) => {
-      console.log(event.data)
       const data = event.data;
       console.log('Received data from server:', data);
     };
