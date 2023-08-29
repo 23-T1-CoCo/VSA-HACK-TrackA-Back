@@ -1,6 +1,11 @@
 import WebSocket, { WebSocketServer } from "ws";
 import http from 'http';
 import { Redis } from 'ioredis';
+import dotenv from 'dotenv';
+
+dotenv.config();
+const REDIS_HOST = process.env.REDIS_HOST;
+const REDIS_PORT = process.env.REDIS_PORT;
 
 const server = http.createServer(); // HTTP 서버 생성
 const wss = new WebSocketServer({ noServer: true }); // WebSocket 서버 포트
@@ -8,8 +13,8 @@ const userIdIndexMapKey = "userIndexMap";
 
 // Redis 클라이언트 생성
 const redisClient = new Redis({
-  host: 'localhost',
-  port: 6379,
+  host: REDIS_HOST,
+  port: REDIS_PORT,
   db: 0
 });
 
