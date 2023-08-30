@@ -1,9 +1,12 @@
 import express from 'express';
 import WebSocket, { WebSocketServer } from "ws";
 import bodyParser from 'body-parser';
+import cors from 'cors';
 
 const app = express();
 app.use(bodyParser.json());
+cors({credentials: true, origin: true});
+app.use(cors());
 
 
 app.get('/:id', (req, res) => {
